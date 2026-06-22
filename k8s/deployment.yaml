@@ -92,7 +92,7 @@ spec:
             # Set to "true" to make GET / return HTTP 500 (DORA change-failure
             # simulation). /healthz stays 200 so the pod remains Ready.
             - name: FAIL_REQUESTS
-              value: "false"
+              value: "true"
           resources:
             requests:
               cpu: "100m"
