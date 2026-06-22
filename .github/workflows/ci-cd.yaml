@@ -13,6 +13,14 @@ on:
         description: "Deployment environment"
         required: false
         default: "staging"
+      force-startup-failure:
+        description: "Fail the pipeline at startup (setup job)"
+        required: false
+        default: "false"
+      failed-tests:
+        description: "Number of unit tests to mark as failed (0 = all pass, max 10)"
+        required: false
+        default: "0"
 
 jobs:
 
@@ -20,6 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Force startup failure
+        if: ${{ github.event.inputs['force-startup-failure'] == 'true' }}
+        run: |
+          echo "force-startup-failure is enabled; failing the pipeline at startup."
+          exit 1
 
       - name: Print environment info
         run: |
@@ -112,6 +126,8 @@ jobs:
           sleep 1
 
       - name: Run unit tests
+        env:
+          FAILED_TESTS: ${{ github.event.inputs['failed-tests'] || '0' }}
         run: |
           echo "Running unit tests..."
           mkdir -p test-results
@@ -124,7 +140,16 @@ jobs:
           RESPONSE=$(curl -sf http://localhost:8080/healthz)
           echo "$RESPONSE" | grep -q '"status": "ok"'
 
-          echo '{"tests": 2, "passed": 2, "failed": 0}' > test-results/unit-tests.json
+          TOTAL=10
+          FAILED=${FAILED_TESTS:-0}
+          PASSED=$((TOTAL - FAILED))
+          echo "{\"tests\": $TOTAL, \"passed\": $PASSED, \"failed\": $FAILED}" > test-results/unit-tests.json
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "Simulating $FAILED failed unit test(s)."
+            echo "Unit tests failed!"
+            exit 1
+          fi
           echo "Unit tests completed!"
 
       - name: Stop webserver
