@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: juro-dora-test
+  namespace: juro-dora-test
+  labels:
+    app: juro-dora-test
+spec:
+  selector:
+    app: juro-dora-test
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP

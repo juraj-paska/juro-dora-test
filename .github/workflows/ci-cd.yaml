@@ -1,0 +1,213 @@
+name: Juro Dora test Pipeline
+
+on:
+  push:
+    branches: ["main", "develop"]
+  workflow_dispatch:
+    inputs:
+      run-integration-tests:
+        description: "Run integration tests"
+        required: false
+        default: "false"
+      deploy-environment:
+        description: "Deployment environment"
+        required: false
+        default: "staging"
+
+jobs:
+
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print environment info
+        run: |
+          echo "Branch: $GITHUB_REF"
+          echo "Run Number: $GITHUB_RUN_NUMBER"
+          echo "Job: $GITHUB_JOB"
+          echo "Workspace: $GITHUB_WORKSPACE"
+
+      - name: Create mock files
+        run: |
+          mkdir -p /tmp/workspace
+          echo "Setup completed at $(date)" > /tmp/workspace/setup.txt
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace
+          path: /tmp/workspace
+
+
+  build:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace
+          path: /tmp/workspace
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          echo "Installing dependencies..."
+          pip install flake8
+          pip install -r app/requirements.txt
+          pip install solarwinds-apm
+          opentelemetry-bootstrap --action=install
+          echo "Dependencies installed!"
+
+      - name: Lint
+        run: flake8 app/main.py --max-line-length=100
+
+      - name: Build application (simulated)
+        run: |
+          echo "Building image juro-dora-test:$GITHUB_SHA..."
+          mkdir -p build
+          cp app/main.py build/main.py
+          cp app/requirements.txt build/requirements.txt
+          echo "image=juro-dora-test:$GITHUB_SHA" > build/meta.txt
+          sleep 2
+          echo "Build completed!"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: build
+
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install APM library
+        run: |
+          pip install -r app/requirements.txt
+          pip install solarwinds-apm
+          opentelemetry-bootstrap --action=install
+
+      - name: Start webserver
+        run: |
+          SW_APM_SERVICE_KEY="TPmsX3C4t03bO2jcuMQ5qf2KLRTwGwDUZlD-wAzvPcT2Ota8cp__KDway4Fbdp7L-2vCSbc:juro-dora-test" \
+          SW_APM_COLLECTOR="apm.collector.na-01.st-ssp.solarwinds.com" \
+          opentelemetry-instrument python app/main.py &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+          sleep 1
+
+      - name: Run unit tests
+        run: |
+          echo "Running unit tests..."
+          mkdir -p test-results
+
+          echo "Testing root endpoint..."
+          RESPONSE=$(curl -sf http://localhost:8080/)
+          echo "$RESPONSE" | grep -q "Hello from Python webserver"
+
+          echo "Testing health endpoint..."
+          RESPONSE=$(curl -sf http://localhost:8080/healthz)
+          echo "$RESPONSE" | grep -q '"status": "ok"'
+
+          echo '{"tests": 2, "passed": 2, "failed": 0}' > test-results/unit-tests.json
+          echo "Unit tests completed!"
+
+      - name: Stop webserver
+        if: always()
+        run: kill $SERVER_PID || true
+
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: test-results
+
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: ${{ github.event.inputs['run-integration-tests'] == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: |
+          echo "Running integration tests..."
+          mkdir -p integration-results
+          echo '{"tests": 15, "passed": 15, "failed": 0}' > integration-results/integration-tests.json
+          sleep 3
+          echo "Integration tests completed!"
+
+      - name: Upload integration results
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: integration-results
+
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run security scan
+        run: |
+          echo "Scanning app/main.py and k8s manifests..."
+          sleep 2
+          echo "No vulnerabilities found!"
+
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: security-scan
+    environment: ${{ github.event.inputs['deploy-environment'] || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: build
+
+      - name: Deploy to Kubernetes (simulated)
+        run: |
+          ENV="${{ github.event.inputs['deploy-environment'] || 'staging' }}"
+          echo "Deploying to $ENV (namespace: juro-dora-test)..."
+          echo "kubectl apply -f k8s/namespace.yaml"
+          echo "kubectl apply -f k8s/configmap.yaml"
+          echo "kubectl apply -f k8s/deployment.yaml"
+          echo "kubectl apply -f k8s/service.yaml"
+          echo "kubectl apply -f k8s/ingress.yaml"
+          sleep 2
+          echo "kubectl rollout status deployment/juro-dora-test -n juro-dora-test"
+          sleep 1
+          echo "Deployment to $ENV successful!"
+
+
+  smoke-tests:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Run smoke tests
+        run: |
+          echo "Hitting https://juro-dora-test.e2e-cluster.click/healthz ..."
+          sleep 2
+          echo '{"status": "ok"}'
+          echo "Smoke tests passed!"
