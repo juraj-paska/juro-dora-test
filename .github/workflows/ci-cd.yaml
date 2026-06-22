@@ -105,7 +105,7 @@ jobs:
 
       - name: Start webserver
         run: |
-          SW_APM_SERVICE_KEY="TPmsX3C4t03bO2jcuMQ5qf2KLRTwGwDUZlD-wAzvPcT2Ota8cp__KDway4Fbdp7L-2vCSbc:juro-dora-test" \
+          SW_APM_SERVICE_KEY="asdasdasd:juro-dora-test" \
           SW_APM_COLLECTOR="apm.collector.na-01.st-ssp.solarwinds.com" \
           opentelemetry-instrument python app/main.py &
           echo "SERVER_PID=$!" >> $GITHUB_ENV
@@ -118,7 +118,7 @@ jobs:
 
           echo "Testing root endpoint..."
           RESPONSE=$(curl -sf http://localhost:8080/)
-          echo "$RESPONSE" | grep -q "Hello from Python webserver"
+          echo "$RESPONSE" | grep -q "Hello from Python webserver Juro Dora Test"
 
           echo "Testing health endpoint..."
           RESPONSE=$(curl -sf http://localhost:8080/healthz)
@@ -191,7 +191,6 @@ jobs:
           ENV="${{ github.event.inputs['deploy-environment'] || 'staging' }}"
           echo "Deploying to $ENV (namespace: juro-dora-test)..."
           echo "kubectl apply -f k8s/namespace.yaml"
-          echo "kubectl apply -f k8s/configmap.yaml"
           echo "kubectl apply -f k8s/deployment.yaml"
           echo "kubectl apply -f k8s/service.yaml"
           echo "kubectl apply -f k8s/ingress.yaml"
