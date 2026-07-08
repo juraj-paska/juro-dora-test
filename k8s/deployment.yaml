@@ -24,7 +24,7 @@ spec:
         kubernetes.io/os: linux
       containers:
         - name: juro-dora-test
-          image: python:3.12-slim
+          image: python:3.10-slim
           imagePullPolicy: IfNotPresent
           command:
             - sh
@@ -92,7 +92,7 @@ spec:
             # Set to "true" to make GET / return HTTP 500 (DORA change-failure
             # simulation). /healthz stays 200 so the pod remains Ready.
             - name: FAIL_REQUESTS
-              value: "false"
+              value: "true"
           resources:
             requests:
               cpu: "100m"
@@ -133,7 +133,7 @@ spec:
             - |
               while true; do
                 curl -sS -o /dev/null -w "traffic-generator: GET / -> %{http_code}\n" http://localhost:8080/ || true
-                sleep 60
+                sleep 61
               done
           resources:
             requests:
