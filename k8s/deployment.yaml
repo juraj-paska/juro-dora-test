@@ -24,7 +24,7 @@ spec:
         kubernetes.io/os: linux
       containers:
         - name: juro-dora-test
-          image: python:3.10-slim
+          image: python:3.11-slim
           imagePullPolicy: IfNotPresent
           command:
             - sh
