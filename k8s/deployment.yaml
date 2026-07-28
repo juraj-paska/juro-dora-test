@@ -135,7 +135,7 @@ spec:
             - |
               while true; do
                 curl -sS -o /dev/null -w "traffic-generator: GET / -> %{http_code}\n" http://localhost:8080/ || true
-                sleep 61
+                sleep 63
               done
           resources:
             requests:
